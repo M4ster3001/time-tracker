@@ -1,0 +1,41 @@
+name: Sugerir uma melhoria
+description: Proponha uma mudança que resolva uma necessidade concreta.
+title: "[Melhoria]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Não inclua credenciais, dados de clientes nem informações confidenciais na solicitação.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema precisa ser resolvido?
+      description: Explique quem é afetado e em que situação a dificuldade aparece.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Qual solução você propõe?
+      description: Descreva o resultado desejado. A implementação pode ser discutida depois.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Inclua soluções temporárias ou outras abordagens que avaliou.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Como saberemos que a melhoria funciona?
+      description: Liste resultados ou critérios observáveis.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacidade
+      options:
+        - label: Confirmei que a solicitação não inclui dados reais, segredos ou informações pessoais.
+          required: true

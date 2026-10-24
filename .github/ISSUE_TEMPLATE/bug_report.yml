@@ -1,0 +1,61 @@
+name: Relatar um bug
+description: Relate um problema reproduzível no aplicativo ou na documentação.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Antes de enviar, confirme que não incluiu credenciais, tokens, dados de clientes,
+        registros de produção ou informações pessoais.
+  - type: textarea
+    id: summary
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o comportamento observado e o que esperava que acontecesse.
+      placeholder: Passos ou contexto suficientes para entender o problema.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Como reproduzir
+      description: Liste passos mínimos. Use somente dados fictícios.
+      placeholder: |
+        1. Acesse ...
+        2. Faça ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afetada
+      options:
+        - Frontend
+        - API/backend
+        - Banco de dados ou migração
+        - Integração
+        - Documentação
+        - Outra
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão ou commit
+      description: Informe a versão publicada ou o hash curto do commit, se conhecido.
+      placeholder: v1.2.0 ou abc1234
+  - type: textarea
+    id: environment
+    attributes:
+      label: Ambiente
+      description: Informe sistema operacional, navegador e modo de execução, sem incluir URLs privadas ou segredos.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacidade e segurança
+      options:
+        - label: Confirmei que este relato não contém segredos, dados reais de clientes ou informações pessoais.
+          required: true

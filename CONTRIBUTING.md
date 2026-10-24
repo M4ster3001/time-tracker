@@ -4,9 +4,10 @@ Obrigado por querer melhorar o Time Tracker. Contribuições de pessoas e empres
 
 ## Antes de começar
 
-1. Leia o [README](README.md), o [índice da documentação](docs/README.md) e a [política de segurança](SECURITY.md).
+1. Leia o [README](README.md), as [instruções para agentes e automações](AGENTS.md), o [índice da documentação](docs/README.md) e a [política de segurança](SECURITY.md).
 2. Para mudanças grandes, abra uma discussão/issue antes de investir em uma implementação extensa.
 3. Nunca inclua dados de clientes, registros de produção, tokens, chaves ou arquivos `.env` em issues, testes ou pull requests.
+4. Consulte as [práticas de saúde e manutenção do repositório](docs/operations/repository-health.md), incluindo as regras para CI e atualizações de dependências.
 
 ## Fluxo sugerido
 
@@ -16,9 +17,13 @@ Obrigado por querer melhorar o Time Tracker. Contribuições de pessoas e empres
 4. Rode localmente os comandos relevantes:
 
    ```bash
+   npm ci
+   npm audit --audit-level=high
+   npm run lint:ci
    npm run type-check
    npm run test
    npm run build
+   npm run test:e2e --workspace=frontend
    npm run release:check
    ```
 

@@ -1,5 +1,7 @@
 # Time Tracker
 
+[![CI](https://github.com/M4ster301/time-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/M4ster301/time-tracker/actions/workflows/ci.yml)
+
 ## Registro de horas simples de entender, útil para pessoas e equipes
 
 O **Time Tracker** é uma aplicação open source para registrar trabalho, organizar horas por cliente e projeto, acompanhar saldos e transformar apontamentos em relatórios. Foi pensado para profissionais independentes, consultorias, agências e empresas de serviços que precisam de uma visão consistente do trabalho realizado — sem começar com uma planilha espalhada por cada equipe.
@@ -8,7 +10,11 @@ O **Time Tracker** é uma aplicação open source para registrar trabalho, organ
 
 [Começar a usar](docs/getting-started/installation.md) · [Personalizar](docs/getting-started/customization.md) · [Índice da documentação](docs/README.md) · [Contribuir](CONTRIBUTING.md)
 
+[Instruções para agentes](AGENTS.md) · [Saúde do repositório](docs/operations/repository-health.md)
+
 ---
+
+## Para quem é
 
 ## Para quem é
 
