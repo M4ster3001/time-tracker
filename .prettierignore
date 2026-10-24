@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+coverage
+.next
+out
+.turbo
+.git
+.husky
+*.min.js
+*.min.css

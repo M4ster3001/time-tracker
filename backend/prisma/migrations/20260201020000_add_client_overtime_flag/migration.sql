@@ -1,0 +1,2 @@
+ALTER TABLE `clients`
+  ADD COLUMN `paysOvertime` BOOLEAN NOT NULL DEFAULT true;

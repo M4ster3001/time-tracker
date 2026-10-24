@@ -1,0 +1,2 @@
+export const MANAGER_DASHBOARD_AUTO_REFRESH_MS = 60_000;
+export const MANAGER_DASHBOARD_VIEW_STORAGE_KEY = 'managerDashboardView';

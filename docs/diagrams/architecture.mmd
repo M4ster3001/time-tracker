@@ -1,0 +1,10 @@
+flowchart LR
+    people["Pessoas<br/>consultor · gerente · administrador"] --> browser["Navegador"]
+    browser --> web["Frontend<br/>React + TypeScript"]
+    web -->|"HTTP /api"| api["Backend<br/>Express + TypeScript"]
+    api --> orm["Prisma ORM"]
+    orm --> db[("MySQL")]
+    api -. "opcional" .-> redis[("Redis")]
+    api -. "opcional" .-> calendar["Google Calendar"]
+    api -. "opcional" .-> ai["Provedor de IA"]
+    mcp["Cliente MCP"] -. "HTTP ou stdio" .-> api

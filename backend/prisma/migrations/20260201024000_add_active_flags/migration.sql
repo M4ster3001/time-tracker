@@ -1,0 +1,5 @@
+ALTER TABLE `users`
+  ADD COLUMN `isActive` BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE `clients`
+  ADD COLUMN `isActive` BOOLEAN NOT NULL DEFAULT true;

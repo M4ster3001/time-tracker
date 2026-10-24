@@ -1,0 +1,4 @@
+ALTER TABLE `audit_logs`
+  ADD COLUMN `detailsJson` JSON NULL,
+  ADD COLUMN `ip` VARCHAR(45) NULL,
+  ADD COLUMN `userAgent` VARCHAR(255) NULL;

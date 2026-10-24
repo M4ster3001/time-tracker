@@ -1,0 +1,10 @@
+flowchart TD
+    start["Pessoa registra horas"] --> form["Frontend valida campos obrigatórios"]
+    form --> api["API autentica e autoriza"]
+    api --> rules["Regras de cliente, período e permissões"]
+    rules -->|"válido"| persist["Persistência via Prisma"]
+    rules -->|"inválido"| feedback["Erro claro para correção"]
+    feedback --> form
+    persist --> views["Painéis, histórico e saldos"]
+    views --> review["Revisão conforme o fluxo da organização"]
+    review --> report["Relatórios e exportações autorizadas"]

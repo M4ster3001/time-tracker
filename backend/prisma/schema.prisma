@@ -1,0 +1,910 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  // native: local/CI host; linux-musl-openssl-3.0.x: Alpine runtime image (OpenSSL 3).
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// Roles
+model Role {
+  id    Int     @id @default(autoincrement())
+  name  String  @unique
+  users User[]
+
+  @@map("roles")
+}
+
+// Users
+model User {
+  id                   Int            @id @default(autoincrement())
+  // Identidade global estavel para sincronizacao entre bancos (local <-> remoto).
+  uuid                 String         @unique @default(uuid()) @db.VarChar(36)
+  name                 String
+  email                String         @unique
+  passwordHash         String
+  roleId               Int
+  accessMode           String         @default("LEGACY") @db.VarChar(16)
+  locale               String         @default("pt-BR") @db.VarChar(16)
+  accessMemberships    AccessMembership[]
+  hourAccounts         HourAccount[]
+  managerId            Int?
+  isActive             Boolean        @default(true)
+  // SEC-02: Soft delete support
+  deletedAt            DateTime?
+  deletedBy            Int?
+  // SEC-03: Account lockout fields
+  failedLoginAttempts  Int            @default(0)
+  lockedUntil          DateTime?
+  lastFailedLoginAt    DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  role                 Role           @relation(fields: [roleId], references: [id])
+  manager              User?          @relation("ManagerToConsultant", fields: [managerId], references: [id])
+  consultants          User[]         @relation("ManagerToConsultant")
+  managerAssignmentHistoryAsManager     ManagerAssignmentHistory[] @relation("ManagerAssignmentHistoryManager")
+  managerAssignmentHistoryAsConsultant  ManagerAssignmentHistory[] @relation("ManagerAssignmentHistoryConsultant")
+  timeEntries          TimeEntry[]
+  userClients          UserClient[]
+  auditLogs            AuditLog[]
+  activityTags         ActivityTag[]
+  quickLogPatterns     QuickLogPattern[]
+  refreshTokens        RefreshToken[]
+  personalAccessTokens PersonalAccessToken[]
+  allocations          ClientAllocation[]
+  allocationHistory    ClientAllocationHistory[]
+  googleCalendarConnection GoogleCalendarConnection?
+  googleCalendarImports    GoogleCalendarImport[]
+  temporaryUnlocks         TemporaryUnlock[] @relation("TemporaryUnlockUser")
+  grantedUnlocks           TemporaryUnlock[] @relation("TemporaryUnlockAdmin")
+  notificationPreference   UserNotificationPreference?
+  notificationReminders    NotificationReminder[]
+  ownedProjects            Project[] @relation("ProjectOwner")
+  projectMemberships       ProjectMembership[]
+  durationConfirmations    DurationConfirmation[]
+  trackingSessions         TrackingSession[]
+  estimationReferences     EstimationReference[] @relation("EstimationReferenceAuthor")
+  calibrationProposals     CalibrationProposal[] @relation("CalibrationProposalAuthor")
+  ownedWorkActivities      WorkActivity[] @relation("WorkActivityOwner")
+  estimateRevisionsAuthored EstimateRevision[] @relation("EstimateRevisionAuthor")
+
+  @@index([roleId])
+  @@index([managerId])
+  @@index([managerId, isActive])
+  @@index([email, lockedUntil])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model RefreshToken {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  tokenHash        String   @unique
+  userAgent        String?
+  ipHash           String?
+  deviceLabel      String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  replacedByHash   String?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model PersonalAccessToken {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  tokenHash  String    @unique
+  label      String
+  grantsJson String?   @db.Text
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("personal_access_tokens")
+}
+
+model AccessGroup {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String   @default("")
+  isActive    Boolean  @default(true)
+  grants      AccessGrant[]
+  memberships AccessMembership[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@map("access_groups")
+}
+
+model AccessGrant {
+  groupId    Int
+  permission String @db.VarChar(80)
+  scope      String @db.VarChar(16)
+  group      AccessGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  @@id([groupId, permission, scope])
+  @@map("access_grants")
+}
+
+model AccessMembership {
+  userId  Int
+  groupId Int
+  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group   AccessGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  @@id([userId, groupId])
+  @@index([groupId])
+  @@map("access_memberships")
+}
+
+model FeatureSetting {
+  key       String @id @db.VarChar(80)
+  enabled   Boolean
+  updatedBy Int?
+  updatedAt DateTime @updatedAt
+  @@map("feature_settings")
+}
+
+model ClosingPeriod {
+  id               Int @id @default(autoincrement())
+  clientId         Int
+  year             Int
+  month            Int
+  startDate        DateTime @db.Date
+  endDate          DateTime @db.Date
+  state            String @default("DRAFT") @db.VarChar(16)
+  version          Int @default(0)
+  publishedVersion Int @default(0)
+  updatedAt        DateTime @updatedAt
+  client           Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  revisions        ClosingRevision[]
+  @@unique([clientId, year, month])
+  @@index([clientId, startDate, endDate])
+  @@map("closing_periods")
+}
+
+model ClosingRevision {
+  id           Int @id @default(autoincrement())
+  periodId     Int
+  version      Int
+  snapshotJson String @db.LongText
+  contentHash  String @db.VarChar(64)
+  reason       String @db.Text
+  createdBy    Int
+  createdAt    DateTime @default(now())
+  approvedBy   Int?
+  approvedAt   DateTime?
+  period       ClosingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  @@unique([periodId, version])
+  @@map("closing_revisions")
+}
+
+model HourAccount {
+  id            Int @id @default(autoincrement())
+  ownerKey      String @unique @db.VarChar(100)
+  kind          String @db.VarChar(16)
+  name          String
+  userId        Int?
+  clientId      Int?
+  allowNegative Boolean @default(false)
+  isActive      Boolean @default(true)
+  createdAt     DateTime @default(now())
+  user          User? @relation(fields: [userId], references: [id], onDelete: Restrict)
+  client        Client? @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  movements     HourMovement[]
+  @@index([userId])
+  @@index([clientId])
+  @@map("hour_accounts")
+}
+
+model HourMovement {
+  id              Int @id @default(autoincrement())
+  accountId       Int
+  deltaMinutes    Int
+  kind            String @db.VarChar(24)
+  sourceKey       String @unique @db.VarChar(191)
+  reason          String @db.Text
+  createdBy       Int
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime?
+  expiresCreditId Int?
+  reversesId      Int? @unique
+  parentId        Int?
+  relatedAccountId Int?
+  account         HourAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  expiredCredit   HourMovement? @relation("ExpiredCredit", fields: [expiresCreditId], references: [id], onDelete: Restrict)
+  expirations     HourMovement[] @relation("ExpiredCredit")
+  reversed        HourMovement? @relation("ReversedMovement", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversal        HourMovement? @relation("ReversedMovement")
+  @@index([accountId, createdAt, id])
+  @@map("hour_movements")
+}
+
+model ActivityTag {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  name       String
+  aiGenerated Boolean  @default(false)
+  usageCount Int      @default(0)
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([lastUsedAt])
+  @@map("activity_tags")
+}
+
+model QuickLogPattern {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  clientId        Int?
+  clientScopeKey  String
+  activityKey     String
+  activityLabel   String
+  durationMinutes Int
+  usageCount      Int      @default(0)
+  lastUsedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client          Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, clientScopeKey, activityKey, durationMinutes])
+  @@index([userId, clientScopeKey, activityKey])
+  @@index([userId, lastUsedAt])
+  @@map("quick_log_patterns")
+}
+
+// Clients
+model Client {
+  id          Int          @id @default(autoincrement())
+  // Identidade global estavel para sincronizacao entre bancos.
+  uuid        String       @unique @default(uuid()) @db.VarChar(36)
+  name        String
+  code        String       @unique
+  lockDay     Int?
+  paysOvertime Boolean     @default(true)
+  isActive    Boolean      @default(true)
+  closingPeriods ClosingPeriod[]
+  hourAccounts HourAccount[]
+  // SEC-02: Soft delete support
+  deletedAt   DateTime?
+  deletedBy   Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  userClients UserClient[]
+  timeEntries TimeEntry[]
+  projects         Project[]
+  allocations      ClientAllocation[]
+  allocationHistory ClientAllocationHistory[]
+  temporaryUnlocks TemporaryUnlock[]
+  notificationReminders NotificationReminder[]
+  quickLogPatterns      QuickLogPattern[]
+  // PRJ-01: quando true, novos lancamentos exigem projeto utilizavel (piloto).
+  requireProjectOnEntries Boolean @default(false)
+  workActivities WorkActivity[]
+
+  @@index([code])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("clients")
+}
+
+enum ProjectState {
+  PLANNED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+// PRJ-01: projeto pertence a um unico cliente; codigo unico por cliente.
+model Project {
+  id          Int          @id @default(autoincrement())
+  uuid        String       @unique @default(uuid()) @db.VarChar(36)
+  clientId    Int
+  code        String       @db.VarChar(64)
+  name        String       @db.VarChar(200)
+  description String?      @db.Text
+  state       ProjectState @default(ACTIVE)
+  ownerUserId Int?
+  startsOn    DateTime?    @db.Date
+  endsOn      DateTime?    @db.Date
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  owner       User?        @relation("ProjectOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  timeEntries TimeEntry[]
+  estimationReferences EstimationReference[]
+  workActivities WorkActivity[]
+  memberships ProjectMembership[]
+
+  @@unique([clientId, code])
+  @@index([clientId])
+  @@index([state])
+  @@map("projects")
+}
+
+// PRJ-01: vinculo usuario↔projeto (nao concede outros clientes/projetos).
+model ProjectMembership {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  userId    Int
+  role      String   @default("MEMBER") @db.VarChar(16)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_memberships")
+}
+
+// EST-01: taxonomia e parametros versionados de estimativa.
+model TaskType {
+  id          Int      @id @default(autoincrement())
+  uuid        String   @unique @default(uuid()) @db.VarChar(36)
+  code        String   @unique @db.VarChar(64)
+  namePt      String   @db.VarChar(120)
+  nameEn      String   @db.VarChar(120)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  parameterSets EstimationParameterSet[]
+  workActivities WorkActivity[]
+
+  @@map("task_types")
+}
+
+enum WorkActivityState {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+// Unidade estavel de trabalho; pode agrupar varios apontamentos.
+model WorkActivity {
+  id          Int               @id @default(autoincrement())
+  uuid        String            @unique @default(uuid()) @db.VarChar(36)
+  clientId    Int
+  projectId   Int?
+  title       String            @db.VarChar(300)
+  description String?           @db.Text
+  taskTypeId  Int?
+  ownerUserId Int?
+  state       WorkActivityState @default(OPEN)
+  version     Int               @default(1)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project     Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  taskType    TaskType?         @relation(fields: [taskTypeId], references: [id], onDelete: SetNull)
+  owner       User?             @relation("WorkActivityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  estimateRevisions EstimateRevision[]
+  timeEntries       TimeEntry[]
+  durationConfirmations DurationConfirmation[]
+
+  @@index([clientId, state])
+  @@index([projectId])
+  @@index([ownerUserId])
+  @@map("work_activities")
+}
+
+enum EstimateRevisionOrigin {
+  CATALOG
+  ONE_OFF
+  MCP
+  AI
+}
+
+// Resultado versionado do motor; ONE_OFF nao muta catalogo.
+model EstimateRevision {
+  id                     Int                    @id @default(autoincrement())
+  uuid                   String                 @unique @default(uuid()) @db.VarChar(36)
+  workActivityId         Int
+  version                Int
+  baseMinutes            Int
+  factor                 Decimal                @db.Decimal(8, 4)
+  rawMinutes             Decimal                @db.Decimal(12, 4)
+  suggestedMinutes       Int
+  roundingMode           String                 @default("NEAREST_MINUTE") @db.VarChar(32)
+  parameterRevisionUuid  String?                @db.VarChar(36)
+  origin                 EstimateRevisionOrigin @default(CATALOG)
+  algorithmVersion       String                 @default("EST-01") @db.VarChar(32)
+  authorUserId           Int?
+  reason                 String?                @db.Text
+  previousRevisionId     Int?
+  createdAt              DateTime               @default(now())
+  workActivity           WorkActivity           @relation(fields: [workActivityId], references: [id], onDelete: Cascade)
+  author                 User?                  @relation("EstimateRevisionAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  previousRevision       EstimateRevision?      @relation("EstimateRevisionChain", fields: [previousRevisionId], references: [id], onDelete: SetNull)
+  nextRevisions          EstimateRevision[]     @relation("EstimateRevisionChain")
+  durationConfirmations  DurationConfirmation[]
+
+  @@unique([workActivityId, version])
+  @@index([workActivityId, createdAt])
+  @@map("estimate_revisions")
+}
+
+enum EstimationScope {
+  GLOBAL
+  CLIENT
+  PROJECT
+}
+
+model EstimationParameterSet {
+  id           Int             @id @default(autoincrement())
+  uuid         String          @unique @default(uuid()) @db.VarChar(36)
+  taskTypeId   Int
+  scope        EstimationScope @default(GLOBAL)
+  clientId     Int?
+  projectId    Int?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  taskType     TaskType        @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+  revisions    EstimationParameterRevision[]
+  calibrationProposals CalibrationProposal[]
+
+  @@index([taskTypeId, scope])
+  @@map("estimation_parameter_sets")
+}
+
+model EstimationParameterRevision {
+  id                Int      @id @default(autoincrement())
+  uuid              String   @unique @default(uuid()) @db.VarChar(36)
+  parameterSetId    Int
+  baseMinutes       Int
+  factor            Decimal  @db.Decimal(8, 4)
+  roundingMode      String   @default("NEAREST_MINUTE") @db.VarChar(32)
+  effectiveFrom     DateTime @db.Date
+  effectiveTo       DateTime? @db.Date
+  authorUserId      Int?
+  reason            String?  @db.Text
+  previousRevisionId Int?
+  createdAt         DateTime @default(now())
+  parameterSet      EstimationParameterSet @relation(fields: [parameterSetId], references: [id], onDelete: Cascade)
+
+  @@index([parameterSetId, effectiveFrom])
+  @@map("estimation_parameter_revisions")
+}
+
+// EST-02: historico imutavel de confirmacoes humanas (versao + precedente).
+model DurationConfirmation {
+  id                     Int      @id @default(autoincrement())
+  uuid                   String   @unique @default(uuid()) @db.VarChar(36)
+  timeEntryId            Int
+  workActivityId         Int?
+  estimateRevisionId     Int?
+  version                Int
+  confirmedMinutes       Int
+  estimatedMinutesSnapshot Int?
+  justification          String?  @db.Text
+  confirmedByUserId      Int
+  confirmedAt            DateTime @default(now())
+  previousConfirmationId Int?
+  createdAt              DateTime @default(now())
+  timeEntry              TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+  workActivity           WorkActivity? @relation(fields: [workActivityId], references: [id], onDelete: SetNull)
+  estimateRevision       EstimateRevision? @relation(fields: [estimateRevisionId], references: [id], onDelete: SetNull)
+  confirmedBy            User      @relation(fields: [confirmedByUserId], references: [id], onDelete: Restrict)
+  previousConfirmation   DurationConfirmation?  @relation("DurationConfirmationChain", fields: [previousConfirmationId], references: [id], onDelete: SetNull)
+  nextConfirmations      DurationConfirmation[] @relation("DurationConfirmationChain")
+
+  @@unique([timeEntryId, version])
+  @@index([timeEntryId, confirmedAt])
+  @@index([confirmedByUserId])
+  @@index([workActivityId])
+  @@index([estimateRevisionId])
+  @@map("duration_confirmations")
+}
+
+// SRC-01: evidencias (commit/PR/issue/documento) como insumo — nunca Actual Tracked.
+enum EstimationReferenceKind {
+  COMMIT
+  PULL_REQUEST
+  ISSUE
+  DOCUMENT
+  MANUAL
+}
+
+model EstimationReference {
+  id                   Int                     @id @default(autoincrement())
+  uuid                 String                  @unique @default(uuid()) @db.VarChar(36)
+  provider             String                  @db.VarChar(64)
+  kind                 EstimationReferenceKind
+  externalId           String                  @db.VarChar(255)
+  repository           String?                 @db.VarChar(255)
+  dedupeKey            String                  @db.VarChar(512)
+  evidenceVersion      Int                     @default(1)
+  contentFingerprint   String?                 @db.VarChar(64)
+  previousReferenceId  Int?
+  title                String?                 @db.VarChar(500)
+  uri                  String?                 @db.VarChar(1000)
+  timeEntryId          Int?
+  projectId            Int?
+  authorUserId         Int?
+  collectedAt          DateTime                @default(now())
+  createdAt            DateTime                @default(now())
+  timeEntry            TimeEntry?              @relation(fields: [timeEntryId], references: [id], onDelete: SetNull)
+  project              Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  author               User?                   @relation("EstimationReferenceAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  previousReference    EstimationReference?    @relation("EstimationReferenceChain", fields: [previousReferenceId], references: [id], onDelete: SetNull)
+  nextReferences       EstimationReference[]   @relation("EstimationReferenceChain")
+
+  @@unique([dedupeKey, evidenceVersion])
+  @@index([dedupeKey])
+  @@index([timeEntryId])
+  @@index([projectId])
+  @@index([kind, provider])
+  @@map("estimation_references")
+}
+
+// TRK-01: sessoes de medicao opcional; Actual Tracked so destas.
+enum TrackingSessionState {
+  RUNNING
+  PAUSED
+  STOPPED
+}
+
+enum TrackingSessionSource {
+  TIMER
+  IMPORT
+}
+
+model TrackingSession {
+  id                   Int                   @id @default(autoincrement())
+  uuid                 String                @unique @default(uuid()) @db.VarChar(36)
+  userId               Int
+  timeEntryId          Int?
+  state                TrackingSessionState  @default(RUNNING)
+  source               TrackingSessionSource @default(TIMER)
+  startedAt            DateTime
+  endedAt              DateTime?
+  pausedAt             DateTime?
+  accumulatedPausedMs  Int                   @default(0)
+  externalId           String?               @db.VarChar(255)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeEntry            TimeEntry?            @relation(fields: [timeEntryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, state])
+  @@index([timeEntryId])
+  @@unique([source, externalId])
+  @@map("tracking_sessions")
+}
+
+// CAL-01: limiares de amostra/promocao (singleton). Campos null = gate desligado (produto define antes do piloto).
+model CalibrationPolicy {
+  id                             Int       @id @default(1)
+  minSampleSize                  Int?
+  minMeasuredSampleSize          Int?
+  maxMedianAbsoluteErrorMinutes  Float?
+  maxAbsoluteBiasMinutes         Float?
+  updatedByUserId                Int?
+  updatedAt                      DateTime  @updatedAt
+  createdAt                      DateTime  @default(now())
+
+  @@map("calibration_policies")
+}
+
+// CAL-01: proposta de calibracao (stub de modelo + comparacao de dominio).
+enum CalibrationProposalState {
+  DRAFT
+  PROPOSED
+  APPROVED
+  REJECTED
+}
+
+model CalibrationProposal {
+  id                    Int                      @id @default(autoincrement())
+  uuid                  String                   @unique @default(uuid()) @db.VarChar(36)
+  taskTypeCode          String?                  @db.VarChar(64)
+  parameterSetId        Int?
+  /// Contexto de precedência (projeto > cliente > global) quando parameterSetId é nulo.
+  targetClientId        Int?
+  targetProjectId       Int?
+  sampleSize            Int
+  medianAbsErrorMinutes Float?
+  biasMinutes           Float?
+  measuredSampleSize    Int                      @default(0)
+  proposedBaseMinutes   Int?
+  proposedFactor        Decimal?                 @db.Decimal(8, 4)
+  justification         String?                  @db.Text
+  state                 CalibrationProposalState @default(DRAFT)
+  authorUserId          Int
+  decidedByUserId       Int?
+  decidedAt             DateTime?
+  resultingRevisionId   Int?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  author                User                     @relation("CalibrationProposalAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  parameterSet          EstimationParameterSet?  @relation(fields: [parameterSetId], references: [id], onDelete: SetNull)
+
+  @@index([state, createdAt])
+  @@index([authorUserId])
+  @@index([parameterSetId])
+  @@map("calibration_proposals")
+}
+
+enum AllocationType {
+  DAILY
+  MONTHLY
+}
+
+model ClientAllocation {
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  clientId        Int
+  allocationType  AllocationType
+  hoursPerDay     Float?
+  hoursPerMonth   Float?
+  hourlyRate      Decimal?       @db.Decimal(10, 2)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client          Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([userId])
+  @@index([clientId])
+  @@map("client_allocations")
+}
+
+model ClientAllocationHistory {
+  id             Int            @id @default(autoincrement())
+  userId         Int
+  clientId       Int
+  allocationType AllocationType
+  hoursPerDay    Float?
+  hoursPerMonth  Float?
+  hourlyRate     Decimal?       @db.Decimal(10, 2)
+  effectiveFrom  DateTime       @db.Date
+  effectiveTo    DateTime?      @db.Date
+  createdBy      Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client         Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId, clientId, effectiveFrom])
+  @@index([userId, clientId, effectiveTo])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("client_allocation_history")
+}
+
+model SeedRun {
+  key         String   @id
+  lastRunDate DateTime
+
+  @@map("seed_runs")
+}
+
+// User-Client relationship (N:N)
+model UserClient {
+  userId    Int
+  clientId  Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([userId, clientId])
+  @@index([userId])
+  @@index([clientId])
+  @@map("user_clients")
+}
+
+// Time Entries
+enum TimeEntrySource {
+  PORTAL
+  API
+}
+
+model TimeEntry {
+  id                  Int      @id @default(autoincrement())
+  // Identidade global estavel para sincronizacao entre bancos.
+  uuid                String   @unique @default(uuid()) @db.VarChar(36)
+  userId              Int
+  clientId            Int
+  date                DateTime @db.Date
+  activityDescription String   @db.Text
+  // Compatibilidade: total declarado legado / espelho do confirmado quando existir fluxo novo.
+  durationMinutes     Int
+  // DAT-01: tres duracoes distintas (nullable). Legado deixa tudo null e usa durationMinutes.
+  estimatedDurationMinutes     Int?
+  confirmedDurationMinutes     Int?
+  // null = Nao medido; 0 = medicao valida de zero. Nunca preencher por calendario/commit/IA.
+  actualTrackedDurationMinutes Int?
+  confirmedAt                  DateTime?
+  confirmedByUserId            Int?
+  // PRJ-01: opcional; legado aparece como "Sem projeto".
+  projectId           Int?
+  workActivityId      Int?
+  // Origem do lancamento: portal (navegador) ou API (ex: token de acesso pessoal).
+  source              TimeEntrySource @default(PORTAL)
+  // Desktop-only copy of the last version accepted from the server.
+  syncBaseUpdatedAt    DateTime?
+  // Tombstone: exclusao logica para que delecoes tambem sincronizem.
+  deletedAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client              Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  workActivity        WorkActivity? @relation(fields: [workActivityId], references: [id], onDelete: SetNull)
+  googleCalendarImport GoogleCalendarImport?
+  durationConfirmations DurationConfirmation[]
+  trackingSessions      TrackingSession[]
+  estimationReferences  EstimationReference[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([workActivityId])
+  @@index([date])
+  @@index([userId, date])
+  // PERF-05: Composite index for common query pattern (user + client + date range)
+  @@index([userId, clientId, date])
+  // PERF-06: Composite index for client + date range queries (admin reports, client dashboard)
+  @@index([clientId, date])
+  // Sync: buscar mudancas por janela de tempo.
+  @@index([updatedAt])
+  @@map("time_entries")
+}
+
+// Audit Logs
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  endpoint  String
+  action    String
+  status    String
+  details   String?  @db.Text
+  detailsJson Json?
+  ip        String?  @db.VarChar(45)
+  userAgent String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([endpoint])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// Google Calendar Integration
+model GoogleCalendarConnection {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  accessTokenEnc  String   @db.Text
+  refreshTokenEnc String   @db.Text
+  tokenExpiresAt  DateTime
+  calendarEmail   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_calendar_connections")
+}
+
+model GoogleCalendarImport {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  googleEventId String
+  timeEntryId   Int       @unique
+  importedAt    DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeEntry     TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, googleEventId])
+  @@index([userId])
+  @@map("google_calendar_imports")
+}
+
+model UserNotificationPreference {
+  userId         Int      @id
+  enabled        Boolean  @default(false)
+  timesJson      String   @db.Text
+  snoozeMinutes  Int      @default(30)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_notification_preferences")
+}
+
+model NotificationReminder {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  clientId       Int
+  reminderDate   DateTime @db.Date
+  scheduledTime  String   @db.VarChar(5)
+  status         String   @db.VarChar(20)
+  snoozedUntil   DateTime?
+  triggeredAt    DateTime?
+  dismissedAt    DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId, reminderDate, scheduledTime])
+  @@index([userId, reminderDate, status])
+  @@index([userId, snoozedUntil])
+  @@index([clientId, reminderDate])
+  @@map("notification_reminders")
+}
+
+// Temporary Unlock: Admin grants user temporary access to edit locked periods
+model TemporaryUnlock {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  clientId    Int
+  grantedBy   Int
+  periodYear  Int
+  periodMonth Int
+  reason      String    @db.Text
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation("TemporaryUnlockUser", fields: [userId], references: [id], onDelete: Cascade)
+  admin       User      @relation("TemporaryUnlockAdmin", fields: [grantedBy], references: [id])
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  edits       TemporaryUnlockEdit[]
+
+  @@index([userId, clientId])
+  @@index([expiresAt])
+  @@index([userId, clientId, periodYear, periodMonth])
+  @@map("temporary_unlocks")
+}
+
+// Tracks every edit made during a temporary unlock window
+model TemporaryUnlockEdit {
+  id                Int             @id @default(autoincrement())
+  temporaryUnlockId Int
+  timeEntryId       Int?
+  action            String          // CREATE, UPDATE, DELETE
+  previousData      Json?
+  newData           Json?
+  createdAt         DateTime        @default(now())
+  temporaryUnlock   TemporaryUnlock @relation(fields: [temporaryUnlockId], references: [id], onDelete: Cascade)
+
+  @@index([temporaryUnlockId])
+  @@map("temporary_unlock_edits")
+}
+
+
+model ManagerAssignmentHistory {
+  id           Int      @id @default(autoincrement())
+  managerId    Int
+  consultantId Int
+  startDate    DateTime @db.Date
+  endDate      DateTime? @db.Date
+  createdAt    DateTime @default(now())
+  manager      User     @relation("ManagerAssignmentHistoryManager", fields: [managerId], references: [id], onDelete: Cascade)
+  consultant   User     @relation("ManagerAssignmentHistoryConsultant", fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@index([consultantId, startDate, endDate])
+  @@index([managerId, startDate, endDate])
+  @@map("manager_assignment_history")
+}
