@@ -1,6 +1,6 @@
 # Time Tracker
 
-[![CI](https://github.com/M4ster301/time-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/M4ster301/time-tracker/actions/workflows/ci.yml)
+[![CI](https://github.com/M4ster3001/time-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/M4ster3001/time-tracker/actions/workflows/ci.yml)
 
 ## Registro de horas simples de entender, útil para pessoas e equipes
 
@@ -13,8 +13,6 @@ O **Time Tracker** é uma aplicação open source para registrar trabalho, organ
 [Instruções para agentes](AGENTS.md) · [Saúde do repositório](docs/operations/repository-health.md)
 
 ---
-
-## Para quem é
 
 ## Para quem é
 
