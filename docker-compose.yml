@@ -41,7 +41,10 @@ services:
         condition: service_healthy
         required: false
     volumes:
-      - ${BACKUP_HOST_PATH:-./backend/backups}:/app/backups
+      # Named volume by default (works on Linux, macOS, Windows and filesystems
+      # without chown such as vfat/exFAT/network shares). Set BACKUP_HOST_PATH to
+      # a folder path to store backups on the host instead.
+      - ${BACKUP_HOST_PATH:-backups_data}:/app/backups
     networks:
       - app-network
     healthcheck:
@@ -90,6 +93,8 @@ services:
 
 volumes:
   mysql_data:
+    driver: local
+  backups_data:
     driver: local
 
 networks:
