@@ -13,6 +13,22 @@ Use os arquivos `.env.example` como referência, copie-os para arquivos locais i
 
 Os quatro arquivos locais não devem ser versionados. Os exemplos são deliberadamente simples e destinados a desenvolvimento local.
 
+## Backups no Docker
+
+Por padrão, os backups ficam em um volume Docker nomeado (`backups_data`), que funciona em Linux, macOS e Windows, inclusive em discos vfat/exFAT e compartilhamentos de rede onde o Docker não consegue aplicar `chown`.
+
+Para gravar em **outro disco ou pasta do host** (por exemplo, a aplicação roda em `C:` e os backups vão para `F:`), defina `BACKUP_HOST_PATH` no `.env` da raiz:
+
+| Sistema | Exemplo |
+| --- | --- |
+| Windows | `BACKUP_HOST_PATH=F:/time-tracker-backups` |
+| Linux | `BACKUP_HOST_PATH=/mnt/backup/time-tracker` |
+| macOS | `BACKUP_HOST_PATH=/Volumes/Backup/time-tracker` |
+
+Requisitos: crie a pasta antes de subir os containers (o Docker não consegue criá-la em sistemas de arquivos sem suporte a `chown`, como vfat/exFAT), garanta permissão de escrita e, no Docker Desktop, que o disco esteja compartilhado com o Docker. Depois de alterar o `.env`, recrie o backend: `docker compose up -d backend`.
+
+Para copiar os arquivos de um volume nomeado para o host: `docker compose cp backend:/app/backups ./backups-copy`.
+
 ## Configuração mínima
 
 - `DATABASE_URL`: endereço MySQL alcançável pelo processo do backend.
