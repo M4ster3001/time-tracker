@@ -35,7 +35,7 @@ jobs:
       SHADOW_DATABASE_URL: mysql://test:ci-test-only@127.0.0.1:3306/time_tracker_test_shadow
       JWT_SECRET: ci-only-test-key-never-use-in-production-2026
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
