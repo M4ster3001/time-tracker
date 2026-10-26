@@ -1,4 +1,4 @@
-FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS builder
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS builder
 
 # openssl (runtime) so Prisma detects OpenSSL 3 and emits linux-musl-openssl-3.0.x.
 RUN apk add --no-cache \
@@ -28,7 +28,7 @@ RUN npm run db:generate --workspace=backend \
   && npm prune --omit=dev --ignore-scripts
 RUN node scripts/third-party-notices.mjs .cache/runtime-notices
 
-FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797
 
 # Runtime OS deps for canvas/openssl/backups. apk upgrade picks available Alpine fixes.
 # Bundled npm/yarn/corepack are removed: the app runs with `node` only.
